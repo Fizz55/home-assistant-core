@@ -67,6 +67,7 @@ from .const import (
     EVENT_SERVICE_REGISTERED,
     EVENT_SERVICE_REMOVED,
     EVENT_STATE_CHANGED,
+    EVENT_STATE_UPDATED,
     MATCH_ALL,
     MAX_LENGTH_EVENT_EVENT_TYPE,
     MAX_LENGTH_STATE_STATE,
@@ -1723,6 +1724,12 @@ class StateMachine:
             EventOrigin.local,
             context=context,
         )
+        self._bus.async_fire(
+            EVENT_STATE_UPDATED,
+            {"entity_id": entity_id, "old_state": old_state, "new_state": None},
+            EventOrigin.local,
+            context=context,
+        )
         return True
 
     def set(
@@ -1807,9 +1814,6 @@ class StateMachine:
             same_attr = old_state.attributes == attributes
             last_changed = old_state.last_changed if same_state else None
 
-        if same_state and same_attr:
-            return
-
         if context is None:
             # It is much faster to convert a timestamp to a utc datetime object
             # than converting a utc datetime object to a timestamp since cpython
@@ -1838,11 +1842,22 @@ class StateMachine:
             old_state is None,
             state_info,
         )
-        if old_state is not None:
-            old_state.expire()
-        self._states[entity_id] = state
+
+        if not same_state or not same_attr:
+            if old_state is not None:
+                old_state.expire()
+            self._states[entity_id] = state
+            self._bus.async_fire(
+                EVENT_STATE_CHANGED,
+                {"entity_id": entity_id, "old_state": old_state, "new_state": state},
+                EventOrigin.local,
+                context,
+                time_fired=now,
+            )
+
+        # Always fire EVENT_STATE_UPDATED, even if state and attributes have not changed
         self._bus.async_fire(
-            EVENT_STATE_CHANGED,
+            EVENT_STATE_UPDATED,
             {"entity_id": entity_id, "old_state": old_state, "new_state": state},
             EventOrigin.local,
             context,

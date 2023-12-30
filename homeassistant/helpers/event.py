@@ -17,6 +17,7 @@ import attr
 from homeassistant.const import (
     EVENT_CORE_CONFIG_UPDATE,
     EVENT_STATE_CHANGED,
+    EVENT_STATE_UPDATED,
     MATCH_ALL,
     SUN_EVENT_SUNRISE,
     SUN_EVENT_SUNSET,
@@ -50,6 +51,9 @@ from .typing import EventType, TemplateVarsType
 
 TRACK_STATE_CHANGE_CALLBACKS = "track_state_change_callbacks"
 TRACK_STATE_CHANGE_LISTENER = "track_state_change_listener"
+
+TRACK_STATE_UPDATE_CALLBACKS = "track_state_update_callbacks"
+TRACK_STATE_UPDATE_LISTENER = "track_state_update_listener"
 
 TRACK_STATE_ADDED_DOMAIN_CALLBACKS = "track_state_added_domain_callbacks"
 TRACK_STATE_ADDED_DOMAIN_LISTENER = "track_state_added_domain_listener"
@@ -282,6 +286,28 @@ def async_track_state_change_event(
     return _async_track_state_change_event(hass, entity_ids, action)
 
 
+@bind_hass
+def async_track_state_update_event(
+    hass: HomeAssistant,
+    entity_ids: str | Iterable[str],
+    action: Callable[[EventType[EventStateChangedData]], Any],
+) -> CALLBACK_TYPE:
+    """Track specific state change events indexed by entity_id.
+
+    Unlike async_track_state_change, async_track_state_change_event
+    passes the full event to the callback.
+
+    In order to avoid having to iterate a long list
+    of EVENT_STATE_CHANGED and fire and create a job
+    for each one, we keep a dict of entity ids that
+    care about the state change events so we can
+    do a fast dict lookup to route events.
+    """
+    if not (entity_ids := _async_string_to_lower_list(entity_ids)):
+        return _remove_empty_listener
+    return _async_track_state_update_event(hass, entity_ids, action)
+
+
 @callback
 def _async_dispatch_entity_id_event(
     hass: HomeAssistant,
@@ -325,6 +351,25 @@ def _async_track_state_change_event(
         TRACK_STATE_CHANGE_CALLBACKS,
         TRACK_STATE_CHANGE_LISTENER,
         EVENT_STATE_CHANGED,
+        _async_dispatch_entity_id_event,
+        _async_state_change_filter,
+        action,
+    )
+
+
+@bind_hass
+def _async_track_state_update_event(
+    hass: HomeAssistant,
+    entity_ids: str | Iterable[str],
+    action: Callable[[EventType[EventStateChangedData]], Any],
+) -> CALLBACK_TYPE:
+    """async_track_state_change_event without lowercasing."""
+    return _async_track_event(
+        hass,
+        entity_ids,
+        TRACK_STATE_UPDATE_CALLBACKS,
+        TRACK_STATE_UPDATE_LISTENER,
+        EVENT_STATE_UPDATED,
         _async_dispatch_entity_id_event,
         _async_state_change_filter,
         action,

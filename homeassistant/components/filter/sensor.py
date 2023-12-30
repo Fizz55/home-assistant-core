@@ -39,7 +39,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
     EventStateChangedData,
-    async_track_state_change_event,
+    async_track_state_update_event,
 )
 from homeassistant.helpers.reload import async_setup_reload_service
 from homeassistant.helpers.start import async_at_started
@@ -366,7 +366,7 @@ class SensorFilter(SensorEntity):
         def _async_hass_started(hass: HomeAssistant) -> None:
             """Delay source entity tracking."""
             self.async_on_remove(
-                async_track_state_change_event(
+                async_track_state_update_event(
                     self.hass, [self._entity], self._update_filter_sensor_state_event
                 )
             )
